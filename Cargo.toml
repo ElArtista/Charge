@@ -5,3 +5,5 @@ authors = ["Agorgianitis Loukas <agorglouk@gmail.com>"]
 
 [dependencies]
 time = "0.1.40"
+glutin = "*"
+gl = "*"

@@ -1,3 +1,5 @@
+extern crate gl;
+extern crate glutin;
 extern crate time;
 
 mod game;
