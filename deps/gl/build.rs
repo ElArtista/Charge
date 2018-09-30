@@ -21,6 +21,7 @@ impl Generator for CustomGenerator {
         try!(write_metaloadfn(dest));
         try!(write_type_aliases(registry, dest));
         try!(write_enums(registry, dest));
+        try!(write_gl_guard(dest));
         try!(write_fns(registry, dest));
         try!(write_fnptr_struct_def(dest));
         try!(write_ptrs(registry, dest));
@@ -43,6 +44,7 @@ where
         mod __gl_imports {{
             pub use std::mem;
             pub use std::os::raw;
+            pub use std::ffi::CString;
         }}
     "#
     )
@@ -110,6 +112,76 @@ where
     Ok(())
 }
 
+/// Creates the gl_guard function for opengl error checking
+fn write_gl_guard<W>(dest: &mut W) -> io::Result<()>
+where
+    W: io::Write,
+{
+    writeln!(
+        dest,
+        r#"
+        unsafe fn gl_guard(fn_name: &str, params: &str) {{
+            let err = __gl_imports::mem::transmute::<_, extern "system" fn() -> u32> (storage::GetError.f)();
+            if err != self::NO_ERROR {{
+                // Show generic info about the error
+                println!("[OpenGL] error @ gl{{}}({{}})", fn_name, params);
+                loop {{
+                    // Gather OpenGL log length
+                    let mut len: types::GLint = 0;
+                    __gl_imports::mem::transmute::<_, extern "system" fn(types::GLenum, *mut types::GLint)>(storage::GetIntegerv.f)(self::DEBUG_NEXT_LOGGED_MESSAGE_LENGTH, &mut len as *mut types::GLint);
+                    if len == 0 {{ break; }}
+
+                    // Create string buffer
+                    let blen = len as usize;
+                    let mut buf: Vec<u8> = Vec::with_capacity(blen + 1);
+                    buf.extend([b' '].iter().cycle().take(blen));
+                    let buf = __gl_imports::CString::from_vec_unchecked(buf);
+
+                    // Gather OpenGL log entry contents
+                    let mut source: types::GLenum = 0; let mut ty: types::GLenum = 0; let mut id: types::GLuint = 0; let mut severity: types::GLenum = 0; let mut length: types::GLsizei = 0;
+                    __gl_imports::mem::transmute::<_, extern "system" fn(types::GLuint, types::GLsizei, *mut types::GLenum, *mut types::GLenum, *mut types::GLuint, *mut types::GLenum, *mut types::GLsizei, *mut types::GLchar) -> types::GLuint>(storage::GetDebugMessageLog.f)(1, len,
+                        &mut source as *mut types::GLenum, &mut ty as *mut types::GLenum, &mut id as *mut types::GLuint, &mut severity as *mut types::GLenum, &mut length as *mut types::GLsizei, buf.as_ptr() as *mut types::GLchar);
+                    let msg = buf.to_string_lossy().into_owned();
+
+                    // Show current log entry
+                    if ty == self::DEBUG_TYPE_ERROR {{
+                        let source = match source {{
+                            DEBUG_SOURCE_API             => "GL_DEBUG_SOURCE_API",
+                            DEBUG_SOURCE_SHADER_COMPILER => "GL_DEBUG_SOURCE_SHADER_COMPILER",
+                            DEBUG_SOURCE_WINDOW_SYSTEM   => "GL_DEBUG_SOURCE_WINDOW_SYSTEM",
+                            DEBUG_SOURCE_THIRD_PARTY     => "GL_DEBUG_SOURCE_THIRD_PARTY",
+                            DEBUG_SOURCE_APPLICATION     => "GL_DEBUG_SOURCE_APPLICATION",
+                            DEBUG_SOURCE_OTHER           => "GL_DEBUG_SOURCE_OTHER",
+                            _ => "???"
+                        }};
+                        let ty = match ty {{
+                            DEBUG_TYPE_ERROR               => "GL_DEBUG_TYPE_ERROR",
+                            DEBUG_TYPE_DEPRECATED_BEHAVIOR => "GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR",
+                            DEBUG_TYPE_UNDEFINED_BEHAVIOR  => "GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR",
+                            DEBUG_TYPE_PERFORMANCE         => "GL_DEBUG_TYPE_PERFORMANCE",
+                            DEBUG_TYPE_PORTABILITY         => "GL_DEBUG_TYPE_PORTABILITY",
+                            DEBUG_TYPE_MARKER              => "GL_DEBUG_TYPE_MARKER",
+                            DEBUG_TYPE_PUSH_GROUP          => "GL_DEBUG_TYPE_PUSH_GROUP",
+                            DEBUG_TYPE_POP_GROUP           => "GL_DEBUG_TYPE_POP_GROUP",
+                            DEBUG_TYPE_OTHER               => "GL_DEBUG_TYPE_OTHER",
+                            _ => "???"
+                        }};
+                        let severity = match severity {{
+                            DEBUG_SEVERITY_HIGH         => "GL_DEBUG_SEVERITY_HIGH",
+                            DEBUG_SEVERITY_MEDIUM       => "GL_DEBUG_SEVERITY_MEDIUM",
+                            DEBUG_SEVERITY_LOW          => "GL_DEBUG_SEVERITY_LOW",
+                            DEBUG_SEVERITY_NOTIFICATION => "GL_DEBUG_SEVERITY_NOTIFICATION",
+                            _ => "???"
+                        }};
+                        println!("Type     : {{}}\nSource   : {{}}\nSeverity : {{}}\nMessage  : {{}}", ty, source, severity, msg);
+                    }}
+                }}
+                panic!();
+            }}
+        }}"#
+    )
+}
+
 /// Creates the functions corresponding to the GL commands.
 ///
 /// The function calls the corresponding function pointer stored in the `storage` module created
@@ -123,17 +195,41 @@ where
             try!(writeln!(dest, "/// Fallbacks: {}", v.join(", ")));
         }
 
+        let idents = gen_parameters(cmd, true, false);
+        let typed_params = gen_parameters(cmd, false, true);
+        let params = gen_parameters(cmd, true, true);
+
+        let param_values = format!(
+            "&format!(\"{}\" {})",
+            (0..idents.len())
+                .map(|_| "{:?}".to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+            idents
+                .iter()
+                .zip(typed_params.iter())
+                .map(|(name, ty)| if ty.contains("GLDEBUGPROC") {
+                    format!(", \"<callback>\"")
+                } else {
+                    format!(", {}", name)
+                }).collect::<Vec<_>>()
+                .concat()
+        );
+
         try!(writeln!(dest,
             "#[allow(non_snake_case, unused_variables, dead_code)] #[inline]
-            pub unsafe fn {name}({params}) -> {return_suffix} {{ \
-                __gl_imports::mem::transmute::<_, extern \"system\" fn({typed_params}) -> {return_suffix}>\
-                    (storage::{name}.f)({idents}) \
+            pub unsafe fn {name}({params}) -> {return_suffix} {{
+                let r = __gl_imports::mem::transmute::<_, extern \"system\" fn({typed_params}) -> {return_suffix}>\
+                    (storage::{name}.f)({idents});
+                    {guard}
+                r
             }}",
             name = cmd.proto.ident,
-            params = gen_parameters(cmd, true, true).join(", "),
-            typed_params = gen_parameters(cmd, false, true).join(", "),
+            params = params.join(", "),
+            typed_params = typed_params.join(", "),
             return_suffix = cmd.proto.ty,
-            idents = gen_parameters(cmd, true, false).join(", "),
+            idents = idents.join(", "),
+            guard = if cmd.proto.ident != "GetError" { format!("gl_guard(\"{}\", {});", cmd.proto.ident, param_values) } else { String::from("") }
         ));
     }
 
