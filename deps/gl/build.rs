@@ -41,8 +41,10 @@ where
     writeln!(
         dest,
         r#"
+        extern crate backtrace;
         mod __gl_imports {{
             pub use std::mem;
+            pub use std::process;
             pub use std::os::raw;
             pub use std::ffi::CString;
         }}
@@ -176,7 +178,45 @@ where
                         println!("Type     : {{}}\nSource   : {{}}\nSeverity : {{}}\nMessage  : {{}}", ty, source, severity, msg);
                     }}
                 }}
-                panic!();
+
+                let mut bt = String::new();
+                let mut i = 0;
+                backtrace::trace(|frame| {{
+                    let ip = frame.ip();
+                    let symbol_address = frame.symbol_address();
+                    if symbol_address as usize == 0x0 {{
+                        return true;
+                    }}
+
+                    // Resolve this instruction pointer to a symbol name
+                    backtrace::resolve(ip, |symbol| {{
+                        let filename = match symbol.filename() {{
+                            Some(path) => {{
+                                if path.is_absolute() {{
+                                    format!("<external_path>/{{:?}}", path.file_name().unwrap())
+                                }} else {{
+                                    format!("{{:?}}", path)
+                                }}
+                            }},
+                            None => "???".to_string()
+                        }};
+                        let lineno = match symbol.lineno() {{
+                            Some(line) => line.to_string(),
+                            None => "???".to_string()
+                        }};
+                        let name = match symbol.name() {{
+                            Some(symbol_name) => format!("{{:?}}", symbol_name),
+                            None => "???".to_string()
+                        }};
+                        let frame_info = format!(" #{{:<2}} {{:p}} {{:70}} {{}}:{{}}\n", i, symbol_address, name, filename, lineno);
+                        bt.push_str(&frame_info);
+                    }});
+
+                    i += 1;
+                    true // Keep going to the next frame
+                }});
+                println!("[Backtrace]\n{{}}", bt);
+                __gl_imports::process::exit(-1);
             }}
         }}"#
     )
