@@ -1,5 +1,6 @@
 extern crate gl;
 extern crate glutin;
+pub extern crate image;
 extern crate time;
 extern crate tobj;
 

@@ -8,3 +8,4 @@ time = "0.1.40"
 glutin = "*"
 gl = { path = "deps/gl" }
 tobj = "0.1.6"
+image = "0.20.0"
