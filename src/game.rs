@@ -77,7 +77,7 @@ impl Game {
         );
 
         // Load sample mesh
-        let mesh = Mesh::from_data(VERTICES, None, vattr_flag(Vattr::Position));
+        let mesh = Mesh::from_data(VERTICES, 3, None, vattr_flag(Vattr::Position));
 
         Game {
             events_loop: events_loop,

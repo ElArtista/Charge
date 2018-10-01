@@ -35,10 +35,14 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn from_data(vertices: &[f32], indices: Option<&[u32]>, attrib_mask: u32) -> Mesh {
+    pub fn from_data(
+        vdata: &[f32],
+        num_verts: usize,
+        indices: Option<&[u32]>,
+        attrib_mask: u32,
+    ) -> Mesh {
         let mut vbo: GLuint = 0;
         let mut ebo: GLuint = 0;
-        let num_verts = vertices.len();
         let num_indcs = match indices {
             Some(indices) => indices.len(),
             None => 0,
@@ -48,8 +52,8 @@ impl Mesh {
             gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                std::mem::size_of_val(vertices) as GLsizeiptr,
-                vertices.as_ptr() as *const GLvoid,
+                std::mem::size_of_val(vdata) as GLsizeiptr,
+                vdata.as_ptr() as *const GLvoid,
                 gl::STATIC_DRAW,
             );
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
