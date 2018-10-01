@@ -1,6 +1,7 @@
 extern crate gl;
 extern crate glutin;
 extern crate time;
+extern crate tobj;
 
 mod game;
 mod graphics;
