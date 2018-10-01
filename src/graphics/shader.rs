@@ -7,7 +7,12 @@ pub struct Shader {
 }
 
 impl Shader {
-    pub fn from_sources(vs_src: &str, gs_src: Option<&str>, fs_src: &str) -> Shader {
+    pub fn new(
+        vs_src: &str,
+        gs_src: Option<&str>,
+        fs_src: &str,
+        attribs: Option<&[&str]>,
+    ) -> Shader {
         let attachments = vec![
             (gl::VERTEX_SHADER, Some(vs_src)),
             (gl::GEOMETRY_SHADER, gs_src),
@@ -16,6 +21,12 @@ impl Shader {
         let prog;
         unsafe {
             prog = gl::CreateProgram();
+            if let Some(attribs) = attribs {
+                for (i, attrib) in attribs.iter().enumerate() {
+                    let name = format!("{}\0", attrib);
+                    gl::BindAttribLocation(prog, i as GLuint, name.as_ptr() as *const GLchar);
+                }
+            }
             for a in attachments {
                 if let Some(src) = a.1 {
                     let id = gl::CreateShader(a.0);
@@ -73,14 +84,6 @@ impl Shader {
         None
     }
 
-    pub fn setup_attrib_indexes(&self, attribs: &[&str]) {
-        for (i, attrib) in attribs.iter().enumerate() {
-            unsafe {
-                gl::BindAttribLocation(self.id, i as GLuint, attrib.as_ptr() as *const GLchar);
-            }
-        }
-    }
-
     pub fn activate(&self) {
         unsafe { gl::UseProgram(self.id) }
     }
@@ -93,7 +96,7 @@ impl Shader {
 impl Drop for Shader {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteShader(self.id);
+            gl::DeleteProgram(self.id);
         }
     }
 }

@@ -69,8 +69,12 @@ impl Game {
         gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
 
         // Load sample shader
-        let shdr = Shader::from_sources(VERTEX_SHADER, None, FRAGMENT_SHADER);
-        shdr.setup_attrib_indexes(&["position"]);
+        let shdr = Shader::new(
+            VERTEX_SHADER,
+            None,
+            FRAGMENT_SHADER,
+            Some(&["position"]),
+        );
 
         // Load sample mesh
         let mesh = Mesh::from_data(VERTICES, None, vattr_flag(Vattr::Position));
