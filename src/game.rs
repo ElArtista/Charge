@@ -1,14 +1,42 @@
 use gl;
 use glutin::{
-    dpi::*, ContextBuilder, ElementState, Event, EventsLoop, GlContext, GlRequest, GlWindow,
-    VirtualKeyCode, WindowBuilder, WindowEvent,
+    dpi::*, ContextBuilder, ElementState, Event, EventsLoop, GlContext, GlProfile, GlRequest,
+    GlWindow, VirtualKeyCode, WindowBuilder, WindowEvent,
 };
+use graphics::*;
 
 const WND_DIMENSIONS: (f64, f64) = (1280.0, 720.0);
+
+const VERTEX_SHADER: &str = "\
+#version 330 core
+in vec3 position;
+
+void main()
+{
+    gl_Position = vec4(position, 1.0);
+}
+";
+
+const FRAGMENT_SHADER: &str = "\
+#version 330 core
+out vec4 color;
+
+void main()
+{
+    color = vec4(1.0f, 0.0f, 0.0f, 1.0f);
+}
+";
+
+const VERTICES: &[f32] = &[
+    // Positions
+    -0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0,
+];
 
 pub struct Game {
     events_loop: EventsLoop,
     window: GlWindow,
+    shdr: Shader,
+    mesh: Mesh,
 }
 
 impl Game {
@@ -24,6 +52,7 @@ impl Game {
         // Accelerated 3D context
         let context = ContextBuilder::new()
             .with_multisampling(4)
+            .with_gl_profile(GlProfile::Compatibility)
             .with_gl_debug_flag(true)
             .with_gl(GlRequest::GlThenGles {
                 opengl_version: (3, 3),
@@ -39,9 +68,18 @@ impl Game {
         // Load OpenGL function pointers
         gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
 
+        // Load sample shader
+        let shdr = Shader::from_sources(VERTEX_SHADER, None, FRAGMENT_SHADER);
+        shdr.setup_attrib_indexes(&["position"]);
+
+        // Load sample mesh
+        let mesh = Mesh::from_data(VERTICES, None, vattr_flag(Vattr::Position));
+
         Game {
             events_loop: events_loop,
             window: gl_window,
+            shdr: shdr,
+            mesh: mesh,
         }
     }
 
@@ -77,6 +115,8 @@ impl Game {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
+        self.shdr.activate();
+        self.mesh.draw();
         self.window.swap_buffers().unwrap();
     }
 
