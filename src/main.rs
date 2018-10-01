@@ -3,6 +3,7 @@ extern crate glutin;
 extern crate time;
 
 mod game;
+mod graphics;
 mod mainloop;
 
 use game::Game;
