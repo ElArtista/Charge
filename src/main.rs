@@ -4,6 +4,7 @@ pub extern crate image;
 extern crate time;
 extern crate tobj;
 
+mod assets;
 mod game;
 mod graphics;
 mod mainloop;
