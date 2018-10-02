@@ -1,3 +1,4 @@
+extern crate cgmath;
 extern crate gl;
 extern crate glutin;
 pub extern crate image;
