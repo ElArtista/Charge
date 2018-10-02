@@ -9,6 +9,7 @@ mod assets;
 mod game;
 mod graphics;
 mod mainloop;
+mod math;
 
 use game::Game;
 use mainloop::MainLoop;
