@@ -1,6 +1,7 @@
 use gl;
 use gl::types::*;
 use std;
+use std::convert::From;
 
 pub struct Shader {
     id: GLuint,
@@ -84,13 +85,49 @@ impl Shader {
         None
     }
 
+    fn get_uniform_location(&self, name: &str) -> Option<i32> {
+        let n = format!("{}\0", name);
+        let location = unsafe { gl::GetUniformLocation(self.id, n.as_ptr() as *const GLchar) };
+        if location == -1 {
+            return None;
+        }
+        Some(location)
+    }
+
+    pub fn set_uniform<'a, T: Into<Uniform<'a>>>(&self, name: &str, value: T) {
+        if let Some(loc) = self.get_uniform_location(name) {
+            let count = 1; // TODO: Support uniform arrays
+            unsafe {
+                match value.into() {
+                    Uniform::Float1(v) => gl::Uniform1fv(loc, count, &v as *const GLfloat),
+                    Uniform::Float2(v) => gl::Uniform2fv(loc, count, v.as_ptr() as *const GLfloat),
+                    Uniform::Float3(v) => gl::Uniform3fv(loc, count, v.as_ptr() as *const GLfloat),
+                    Uniform::Float4(v) => gl::Uniform4fv(loc, count, v.as_ptr() as *const GLfloat),
+                    Uniform::Int1(v) => gl::Uniform1iv(loc, count, &v as *const GLint),
+                    Uniform::Int2(v) => gl::Uniform2iv(loc, count, v.as_ptr() as *const GLint),
+                    Uniform::Int3(v) => gl::Uniform3iv(loc, count, v.as_ptr() as *const GLint),
+                    Uniform::Int4(v) => gl::Uniform4iv(loc, count, v.as_ptr() as *const GLint),
+                    Uniform::UInt1(v) => gl::Uniform1uiv(loc, count, &v as *const GLuint),
+                    Uniform::UInt2(v) => gl::Uniform2uiv(loc, count, v.as_ptr() as *const GLuint),
+                    Uniform::UInt3(v) => gl::Uniform3uiv(loc, count, v.as_ptr() as *const GLuint),
+                    Uniform::UInt4(v) => gl::Uniform4uiv(loc, count, v.as_ptr() as *const GLuint),
+                    Uniform::Matrix2(v) => {
+                        gl::UniformMatrix2fv(loc, count, gl::FALSE, v.as_ptr() as *const GLfloat)
+                    }
+                    Uniform::Matrix3(v) => {
+                        gl::UniformMatrix3fv(loc, count, gl::FALSE, v.as_ptr() as *const GLfloat)
+                    }
+                    Uniform::Matrix4(v) => {
+                        gl::UniformMatrix4fv(loc, count, gl::FALSE, v.as_ptr() as *const GLfloat)
+                    }
+                }
+            }
+        }
+    }
+
     pub fn activate(&self) {
         unsafe { gl::UseProgram(self.id) }
     }
-
-    //pub fn id(&self) -> GLuint {
-    //    self.id
-    //}
 }
 
 impl Drop for Shader {
@@ -98,5 +135,113 @@ impl Drop for Shader {
         unsafe {
             gl::DeleteProgram(self.id);
         }
+    }
+}
+
+pub enum Uniform<'a> {
+    Float1(f32),
+    Float2(&'a [f32; 2]),
+    Float3(&'a [f32; 3]),
+    Float4(&'a [f32; 4]),
+    Int1(i32),
+    Int2(&'a [i32; 2]),
+    Int3(&'a [i32; 3]),
+    Int4(&'a [i32; 4]),
+    UInt1(u32),
+    UInt2(&'a [u32; 2]),
+    UInt3(&'a [u32; 3]),
+    UInt4(&'a [u32; 4]),
+    Matrix2(&'a [[f32; 2]; 2]),
+    Matrix3(&'a [[f32; 3]; 3]),
+    Matrix4(&'a [[f32; 4]; 4]),
+}
+
+impl<'a> From<f32> for Uniform<'a> {
+    fn from(item: f32) -> Self {
+        Uniform::Float1(item)
+    }
+}
+
+impl<'a> From<&'a [f32; 2]> for Uniform<'a> {
+    fn from(item: &'a [f32; 2]) -> Self {
+        Uniform::Float2(item)
+    }
+}
+
+impl<'a> From<&'a [f32; 3]> for Uniform<'a> {
+    fn from(item: &'a [f32; 3]) -> Self {
+        Uniform::Float3(item)
+    }
+}
+
+impl<'a> From<&'a [f32; 4]> for Uniform<'a> {
+    fn from(item: &'a [f32; 4]) -> Self {
+        Uniform::Float4(item)
+    }
+}
+
+impl<'a> From<i32> for Uniform<'a> {
+    fn from(item: i32) -> Self {
+        Uniform::Int1(item)
+    }
+}
+
+impl<'a> From<&'a [i32; 2]> for Uniform<'a> {
+    fn from(item: &'a [i32; 2]) -> Self {
+        Uniform::Int2(item)
+    }
+}
+
+impl<'a> From<&'a [i32; 3]> for Uniform<'a> {
+    fn from(item: &'a [i32; 3]) -> Self {
+        Uniform::Int3(item)
+    }
+}
+
+impl<'a> From<&'a [i32; 4]> for Uniform<'a> {
+    fn from(item: &'a [i32; 4]) -> Self {
+        Uniform::Int4(item)
+    }
+}
+
+impl<'a> From<u32> for Uniform<'a> {
+    fn from(item: u32) -> Self {
+        Uniform::UInt1(item)
+    }
+}
+
+impl<'a> From<&'a [u32; 2]> for Uniform<'a> {
+    fn from(item: &'a [u32; 2]) -> Self {
+        Uniform::UInt2(item)
+    }
+}
+
+impl<'a> From<&'a [u32; 3]> for Uniform<'a> {
+    fn from(item: &'a [u32; 3]) -> Self {
+        Uniform::UInt3(item)
+    }
+}
+
+impl<'a> From<&'a [u32; 4]> for Uniform<'a> {
+    fn from(item: &'a [u32; 4]) -> Self {
+        Uniform::UInt4(item)
+    }
+}
+
+impl<'a> From<&'a [[f32; 2]; 2]> for Uniform<'a> {
+    fn from(item: &'a [[f32; 2]; 2]) -> Self {
+        Uniform::Matrix2(item)
+    }
+}
+
+impl<'a> From<&'a [[f32; 3]; 3]> for Uniform<'a> {
+    fn from(item: &'a [[f32; 3]; 3]) -> Self {
+        Uniform::Matrix3(item)
+    }
+}
+
+impl<'a> From<&'a [[f32; 4]; 4]> for Uniform<'a> {
+    fn from(item: &'a [[f32; 4]; 4]) -> Self {
+        Uniform::Matrix4(item)
     }
 }
