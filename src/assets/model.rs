@@ -1,3 +1,4 @@
+use math::{InnerSpace, Vector3};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -16,10 +17,54 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn from_buf<B>(reader: &mut B) -> Result<Model, String>
-    where
-        B: BufRead,
-    {
+    pub fn from_file(fpath: &Path) -> Result<Model, String> {
+        let file = try!(File::open(fpath).map_err(|e| e.to_string()));
+        let mut reader = BufReader::new(file);
+        Self::from_buf(&mut reader)
+    }
+
+    pub fn from_buf<B: BufRead>(reader: &mut B) -> Result<Model, String> {
+        Self::load(reader)
+    }
+
+    fn load<B: BufRead>(reader: &mut B) -> Result<Model, String> {
+        let mut m = try!(Self::load_obj(reader));
+        for shape in m.shapes.iter_mut() {
+            if shape.normals.len() == 0 {
+                shape.normals = Self::generate_normals(&mut shape.positions, &mut shape.indices);
+            }
+        }
+        Ok(m)
+    }
+
+    fn generate_normals(positions: &mut [f32], indices: &mut [u32]) -> Vec<f32> {
+        let mut normals = vec![0.0; positions.len()];
+        let s2a = |s: &[f32]| [s[0], s[1], s[2]]; // Slice to array
+        for c in indices.chunks(3) {
+            let tr = c.iter().map(|x| (x * 3) as usize).collect::<Vec<_>>();
+            let v = tr
+                .iter()
+                .map(|i| Vector3::from(s2a(&positions[*i..(*i + 3)])))
+                .collect::<Vec<_>>();
+            let e1 = v[1] - v[0];
+            let e2 = v[2] - v[0];
+            let nm = e1.cross(e2).normalize();
+            tr.iter().for_each(|i| {
+                normals[*i..(*i + 3)]
+                    .iter_mut()
+                    .zip(&[nm.x, nm.y, nm.z])
+                    .for_each(|(a, b)| *a += b)
+            });
+        }
+
+        for nm in normals.chunks_mut(3) {
+            let nnm = Vector3::from(s2a(nm)).normalize();
+            nm.copy_from_slice(&[nnm.x, nnm.y, nnm.z]);
+        }
+        normals
+    }
+
+    fn load_obj<B: BufRead>(reader: &mut B) -> Result<Model, String> {
         let obj = try!(
             tobj::load_obj_buf(reader, |_| Err(tobj::LoadError::MaterialParseError))
                 .map_err(|e| e.to_string())
@@ -37,11 +82,5 @@ impl Model {
             model.shapes.push(shape);
         }
         Ok(model)
-    }
-
-    pub fn from_file(fpath: &Path) -> Result<Model, String> {
-        let file = try!(File::open(fpath).map_err(|e| e.to_string()));
-        let mut reader = BufReader::new(file);
-        Self::from_buf(&mut reader)
     }
 }
