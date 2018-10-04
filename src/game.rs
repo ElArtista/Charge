@@ -7,36 +7,79 @@ use glutin::{
 use graphics::*;
 use math::*;
 use std::path::Path;
+use std::time::Instant;
 
 const WND_DIMENSIONS: (f32, f32) = (1280.0, 720.0);
 
 const VERTEX_SHADER: &str = "\
 #version 330 core
 in vec3 vpos;
+in vec3 vnrm;
 in vec2 vuv0;
 
-out vec2 texcoord;
+out vdata {
+    vec2 texcoord;
+    vec3 normal;
+    vec3 ws_pos;
+} vs_out;
+
+uniform mat4 model;
+uniform mat4 nmm;
 uniform mat4 mvp;
 
 void main()
 {
-    texcoord = vuv0;
+    vs_out.texcoord = vuv0;
+    vs_out.ws_pos = (model * vec4(vpos, 1.0)).xyz;
+    vs_out.normal = mat3(nmm) * vnrm;
     gl_Position = mvp * vec4(vpos, 1.0);
 }
 ";
 
 const FRAGMENT_SHADER: &str = "\
 #version 330 core
-out vec4 color;
-in vec2 texcoord;
+out vec4 fcolor;
+
+in vdata {
+    vec2 texcoord;
+    vec3 normal;
+    vec3 ws_pos;
+} fs_in;
 
 uniform sampler2D tex;
+uniform vec3 light_pos;
+
+const vec3 light_color = vec3(1.0);
 
 void main()
 {
-    color = vec4(texture(tex, texcoord).rgb, 1.0);
+    vec3 base_color = texture(tex, fs_in.texcoord).rgb;
+    vec3 N = normalize(fs_in.normal);
+    vec3 L = normalize(light_pos - fs_in.ws_pos);
+    float kD = max(dot(N, L), 0.0);
+    vec3 color = kD * base_color * light_color;
+    fcolor = vec4(color, 1.0);
 }
 ";
+
+struct Timer {
+    start: Instant,
+}
+
+impl Timer {
+    fn new() -> Self {
+        Timer {
+            start: Instant::now(),
+        }
+    }
+
+    fn elapsed_msec(&self) -> f32 {
+        let now = Instant::now();
+        let dur = now.duration_since(self.start);
+        let elapsed = dur.as_secs() as f64 * 1000.0 + dur.subsec_nanos() as f64 / 1.0e6;
+        elapsed as f32
+    }
+}
 
 pub struct Game {
     events_loop: EventsLoop,
@@ -44,6 +87,7 @@ pub struct Game {
     shdr: Shader,
     mesh: Mesh,
     tex: Texture,
+    timer: Timer,
 }
 
 impl Game {
@@ -93,7 +137,7 @@ impl Game {
             &vdata,
             num_verts,
             Some(&indcs),
-            vattr_flag(Vattr::Position) | vattr_flag(Vattr::UV0),
+            vattr_flag(Vattr::Position) | vattr_flag(Vattr::Normal) | vattr_flag(Vattr::UV0),
         );
 
         // Load sample image
@@ -108,23 +152,25 @@ impl Game {
             shdr: shdr,
             mesh: mesh,
             tex: tex,
+            timer: Timer::new(),
         }
     }
 
     fn load_flattened_model(fpath: &str) -> Result<(Vec<f32>, usize, Vec<u32>), String> {
         let mut model = try!(Model::from_file(Path::new(fpath)));
-        let mut vpos = Vec::new();
-        let mut vuv0 = Vec::new();
-        let mut indc = Vec::new();
+        let (mut vpos, mut vnrm, mut vuv0, mut indc) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let mut nvrt = 0;
         for s in model.shapes.iter_mut() {
             vpos.append(&mut s.positions);
+            vnrm.append(&mut s.normals);
             vuv0.append(&mut s.texcoords);
             indc.append(&mut s.indices);
             nvrt += vpos.len() / 3;
         }
         let mut vdata = Vec::new();
         vdata.append(&mut vpos);
+        vdata.append(&mut vnrm);
         vdata.append(&mut vuv0);
         Ok((vdata, nvrt, indc))
     }
@@ -161,7 +207,9 @@ impl Game {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
             gl::Enable(gl::DEPTH_TEST);
+            gl::Enable(gl::CULL_FACE);
         }
+
         let proj = perspective(Deg(60.0), WND_DIMENSIONS.0 / WND_DIMENSIONS.1, 0.1, 100.0);
         let view = Matrix4::look_at(
             Point3::new(0.0, 0.0, -3.0),
@@ -169,10 +217,21 @@ impl Game {
             Vector3::new(0.0, 1.0, 0.0),
         );
         let modl = Matrix4::from_angle_y(Deg(26.0));
+        let nmm = conv::array4x4(modl.invert().unwrap().transpose()); // mat3(transpose(inverse(model)))
         let mvp = conv::array4x4(proj * view * modl);
+        let mdl = conv::array4x4(modl);
+
         self.shdr.activate();
+        self.shdr.set_uniform("model", &mdl);
+        self.shdr.set_uniform("nmm", &nmm);
         self.shdr.set_uniform("mvp", &mvp);
         self.shdr.set_uniform("tex", 0);
+
+        // Make time varying movable light
+        let time = self.timer.elapsed_msec() / 1000.0;
+        let light_pos: [f32; 3] = Vector3::new(10.0 * time.sin(), 0.0, 10.0 * time.cos()).into();
+        self.shdr.set_uniform("light_pos", &light_pos);
+
         self.tex.bind(0);
         self.mesh.draw();
         self.window.swap_buffers().unwrap();
