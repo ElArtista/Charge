@@ -9,4 +9,4 @@ glutin = "*"
 gl = { path = "deps/gl" }
 tobj = "0.1.6"
 image = "0.20.0"
-cgmath = "0.16.1"
+nalgebra-glm = "0.1.1"

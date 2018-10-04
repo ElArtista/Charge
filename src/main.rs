@@ -1,7 +1,7 @@
-extern crate cgmath;
 extern crate gl;
 extern crate glutin;
 pub extern crate image;
+extern crate nalgebra_glm;
 extern crate time;
 extern crate tobj;
 

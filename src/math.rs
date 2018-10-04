@@ -1,1 +1,1 @@
-pub use cgmath::*;
+pub use nalgebra_glm::*;

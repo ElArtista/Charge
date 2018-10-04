@@ -24,14 +24,14 @@ out vdata {
 } vs_out;
 
 uniform mat4 model;
-uniform mat4 nmm;
 uniform mat4 mvp;
+uniform mat3 nmm;
 
 void main()
 {
     vs_out.texcoord = vuv0;
     vs_out.ws_pos = (model * vec4(vpos, 1.0)).xyz;
-    vs_out.normal = mat3(nmm) * vnrm;
+    vs_out.normal = nmm * vnrm;
     gl_Position = mvp * vec4(vpos, 1.0);
 }
 ";
@@ -210,27 +210,32 @@ impl Game {
             gl::Enable(gl::CULL_FACE);
         }
 
-        let proj = perspective(Deg(60.0), WND_DIMENSIONS.0 / WND_DIMENSIONS.1, 0.1, 100.0);
-        let view = Matrix4::look_at(
-            Point3::new(0.0, 0.0, -3.0),
-            Point3::new(0.0, 0.0, 0.0),
-            Vector3::new(0.0, 1.0, 0.0),
+        let proj = perspective(
+            WND_DIMENSIONS.0 / WND_DIMENSIONS.1,
+            60.0_f32.to_radians(),
+            0.1,
+            100.0,
         );
-        let modl = Matrix4::from_angle_y(Deg(26.0));
-        let nmm = conv::array4x4(modl.invert().unwrap().transpose()); // mat3(transpose(inverse(model)))
-        let mvp = conv::array4x4(proj * view * modl);
-        let mdl = conv::array4x4(modl);
+        let view = look_at(
+            &vec3(0.0, 0.0, -3.0),
+            &vec3(0.0, 0.0, 0.0),
+            &vec3(0.0, 1.0, 0.0),
+        );
+        let modl = rotate_y(&identity(), 26.0_f32.to_radians());
+        let nmm = mat4_to_mat3(&inverse_transpose(modl)); // mat3(transpose(inverse(model)))
+        let mvp = proj * view * modl;
+        let mdl = modl;
 
         self.shdr.activate();
-        self.shdr.set_uniform("model", &mdl);
-        self.shdr.set_uniform("nmm", &nmm);
-        self.shdr.set_uniform("mvp", &mvp);
+        self.shdr.set_uniform("model", mdl.as_ref());
+        self.shdr.set_uniform("nmm", nmm.as_ref());
+        self.shdr.set_uniform("mvp", mvp.as_ref());
         self.shdr.set_uniform("tex", 0);
 
         // Make time varying movable light
         let time = self.timer.elapsed_msec() / 1000.0;
-        let light_pos: [f32; 3] = Vector3::new(10.0 * time.sin(), 0.0, 10.0 * time.cos()).into();
-        self.shdr.set_uniform("light_pos", &light_pos);
+        let light_pos: Vec3 = vec3(time.sin(), 0.0, time.cos()) * 10.0;
+        self.shdr.set_uniform("light_pos", light_pos.as_ref());
 
         self.tex.bind(0);
         self.mesh.draw();

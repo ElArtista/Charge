@@ -1,4 +1,4 @@
-use math::{InnerSpace, Vector3};
+use math::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -39,16 +39,15 @@ impl Model {
 
     fn generate_normals(positions: &mut [f32], indices: &mut [u32]) -> Vec<f32> {
         let mut normals = vec![0.0; positions.len()];
-        let s2a = |s: &[f32]| [s[0], s[1], s[2]]; // Slice to array
         for c in indices.chunks(3) {
             let tr = c.iter().map(|x| (x * 3) as usize).collect::<Vec<_>>();
             let v = tr
                 .iter()
-                .map(|i| Vector3::from(s2a(&positions[*i..(*i + 3)])))
+                .map(|i| make_vec3(&positions[*i..(*i + 3)]))
                 .collect::<Vec<_>>();
             let e1 = v[1] - v[0];
             let e2 = v[2] - v[0];
-            let nm = e1.cross(e2).normalize();
+            let nm = e1.cross(&e2).normalize();
             tr.iter().for_each(|i| {
                 normals[*i..(*i + 3)]
                     .iter_mut()
@@ -58,7 +57,7 @@ impl Model {
         }
 
         for nm in normals.chunks_mut(3) {
-            let nnm = Vector3::from(s2a(nm)).normalize();
+            let nnm = make_vec3(nm).normalize();
             nm.copy_from_slice(&[nnm.x, nnm.y, nnm.z]);
         }
         normals
