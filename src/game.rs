@@ -212,8 +212,9 @@ impl Game {
             gl::Enable(gl::CULL_FACE);
         }
 
+        let wnd_sz = self.window.get_inner_size().unwrap();
         let proj = perspective(
-            WND_DIMENSIONS.0 / WND_DIMENSIONS.1,
+            wnd_sz.width as f32 / wnd_sz.height as f32,
             60.0_f32.to_radians(),
             0.1,
             100.0,
