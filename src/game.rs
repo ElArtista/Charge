@@ -130,7 +130,7 @@ impl Game {
         );
 
         // Load sample 3D model
-        let (vdata, num_verts, indcs) = Self::load_flattened_model("assets/spot/spot.obj").unwrap();
+        let (vdata, num_verts, indcs) = Self::load_flattened_model("spot/spot.obj").unwrap();
 
         // Load sample mesh
         let mesh = Mesh::from_data(
@@ -141,7 +141,8 @@ impl Game {
         );
 
         // Load sample image
-        let img = Image::from_file(Path::new("assets/spot/spot.png")).unwrap();
+        let img_data = load(Path::new("spot/spot.png")).unwrap();
+        let img = Image::from_buf(img_data).unwrap();
 
         // Load sample texture
         let tex = Texture::from_image(&img);
@@ -157,7 +158,8 @@ impl Game {
     }
 
     fn load_flattened_model(fpath: &str) -> Result<(Vec<f32>, usize, Vec<u32>), String> {
-        let mut model = try!(Model::from_file(Path::new(fpath)));
+        let mut mdl_data = try!(load(Path::new(fpath)));
+        let mut model = try!(Model::from_buf(&mut mdl_data));
         let (mut vpos, mut vnrm, mut vuv0, mut indc) =
             (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let mut nvrt = 0;

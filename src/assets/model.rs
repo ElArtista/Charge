@@ -1,7 +1,5 @@
 use math::*;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::io::BufRead;
 use tobj;
 
 pub struct Shape {
@@ -17,12 +15,6 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn from_file(fpath: &Path) -> Result<Model, String> {
-        let file = try!(File::open(fpath).map_err(|e| e.to_string()));
-        let mut reader = BufReader::new(file);
-        Self::from_buf(&mut reader)
-    }
-
     pub fn from_buf<B: BufRead>(reader: &mut B) -> Result<Model, String> {
         Self::load(reader)
     }
