@@ -13,3 +13,15 @@ nalgebra-glm = "0.1.1"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_glue = "0.2.3"
+
+[package.metadata.android]
+label = "Charge"
+res = "res"
+icon = "@mipmap/ic_launcher"
+assets = "assets"
+android_version = 28
+min_sdk_version = 18
+fullscreen = true
+
+[package.metadata.android.activity_attributes]
+"android:screenOrientation" = "sensorLandscape"

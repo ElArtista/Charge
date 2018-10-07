@@ -1,3 +1,11 @@
+# Assets folders in any project are handled by lfs
 **/assets/** filter=lfs diff=lfs merge=lfs -text
-**/assets/**/*.glsl !filter !diff !merge
+
+# Res folder in any project are handled by lfs
+**/res/** filter=lfs diff=lfs merge=lfs -text
+
+# Exclude assets folders in src directory
 src/**/assets/** !filter !diff !merge
+
+# Exclude shaders
+**/*.glsl !filter !diff !merge
