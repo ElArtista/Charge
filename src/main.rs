@@ -22,7 +22,7 @@ fn main() {
     let mut mainloop = MainLoop::new(
         Box::new(|mut game, dt| Game::update(&mut game, dt)),
         Box::new(|game, interpolation| Game::render(&game, interpolation)),
-        Some(Box::new(|game, ms, fps| Game::perf(&game, ms, fps))),
+        Some(Box::new(|mut game, t, u, r| Game::perf(&mut game, t, u, r))),
         &mut game,
     );
     mainloop.run();

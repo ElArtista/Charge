@@ -239,8 +239,14 @@ impl Game {
         self.window.swap_buffers().unwrap();
     }
 
-    pub fn perf(&self, ms: f32, fps: f32) {
-        let title = format!("[Msec: {:.2} / Fps: {:.2}]", ms, fps);
+    pub fn perf(&mut self, ms: f32, ut: f32, rt: f32) {
+        let title = format!(
+            "[Fps: {:.2} / Msec: {:.2} (CPU: {:.2} | GPU: {:.2})]",
+            1000.0 / ms,
+            ms,
+            ut,
+            rt
+        );
         self.window.set_title(title.as_str());
     }
 }
