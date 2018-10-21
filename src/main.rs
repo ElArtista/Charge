@@ -1,11 +1,12 @@
+#[cfg(target_os = "android")]
+extern crate android_glue;
 extern crate gl;
 extern crate glutin;
 pub extern crate image;
 extern crate nalgebra_glm;
+extern crate rusttype;
 extern crate time;
 extern crate tobj;
-#[cfg(target_os = "android")]
-extern crate android_glue;
 
 mod assets;
 mod game;

@@ -10,6 +10,7 @@ gl = { path = "deps/gl" }
 tobj = "0.1.6"
 image = "0.20.0"
 nalgebra-glm = "0.1.1"
+rusttype = { version = "0.7.2", features = ["gpu_cache"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_glue = "0.2.3"

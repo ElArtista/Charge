@@ -84,7 +84,9 @@ pub struct Game {
     shdr: Shader,
     mesh: Mesh,
     tex: Texture,
+    text_renderer: TextRenderer,
     timer: Timer,
+    status: String,
 }
 
 impl Game {
@@ -141,13 +143,20 @@ impl Game {
         // Load sample texture
         let tex = Texture::from_image(&img);
 
+        // Make text renderer and load sample font
+        let mut text_renderer = TextRenderer::new();
+        let mut font_data = load(Path::new("Hack-Regular.ttf")).unwrap();
+        text_renderer.add_font("sans", &mut font_data);
+
         Game {
             events_loop: events_loop,
             window: gl_window,
             shdr: shdr,
             mesh: mesh,
             tex: tex,
+            text_renderer: text_renderer,
             timer: Timer::new(),
+            status: String::new(),
         }
     }
 
@@ -203,16 +212,11 @@ impl Game {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
             gl::Enable(gl::DEPTH_TEST);
-            gl::Enable(gl::CULL_FACE);
         }
 
         let wnd_sz = self.window.get_inner_size().unwrap();
-        let proj = perspective(
-            wnd_sz.width as f32 / wnd_sz.height as f32,
-            60.0_f32.to_radians(),
-            0.1,
-            100.0,
-        );
+        let wnd_ratio = wnd_sz.width as f32 / wnd_sz.height as f32;
+        let proj = perspective(wnd_ratio, 60.0_f32.to_radians(), 0.1, 100.0);
         let view = look_at(
             &vec3(0.0, 0.0, -3.0),
             &vec3(0.0, 0.0, 0.0),
@@ -236,17 +240,35 @@ impl Game {
 
         self.tex.bind(0);
         self.mesh.draw();
+
+        {
+            let tscl = 1.2;
+            let pad = 0.03;
+            let tmvp = scale(
+                &translation(&vec3(-1.0 + pad, 1.0 - pad * wnd_ratio, 0.0)),
+                &(&vec3(tscl, tscl, tscl)),
+            );
+            self.text_renderer.draw(
+                "sans",
+                &self.status,
+                &[1.0, 1.0, 1.0, 1.0],
+                &tmvp.as_ref(),
+                HAlignment::Right,
+                VAlignment::Bottom,
+                false,
+            );
+        }
+
         self.window.swap_buffers().unwrap();
     }
 
     pub fn perf(&mut self, ms: f32, ut: f32, rt: f32) {
+        let fps = 1000.0 / ms;
         let title = format!(
             "[Fps: {:.2} / Msec: {:.2} (CPU: {:.2} | GPU: {:.2})]",
-            1000.0 / ms,
-            ms,
-            ut,
-            rt
+            fps, ms, ut, rt
         );
         self.window.set_title(title.as_str());
+        self.status = format!("{:.2} FPS {:.2}|{:.2}|{:.2} (CPU|GPU|TOT)", fps, ut, rt, ms);
     }
 }
