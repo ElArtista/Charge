@@ -29,7 +29,9 @@ void main()
 
 const FRAGMENT_SHADER: &str = "\
 #version 300 es
+#ifdef GL_ES
 precision mediump float;
+#endif
 out vec4 fcolor;
 in vec2 tco;
 
