@@ -283,14 +283,14 @@ impl TextRenderer {
                 gl::ARRAY_BUFFER,
                 (vertices.len() * size_of::<Vertex>()) as GLsizeiptr,
                 vertices.as_ptr() as *const GLvoid,
-                gl::STATIC_DRAW,
+                gl::DYNAMIC_DRAW,
             );
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.draw_ebo);
             gl::BufferData(
                 gl::ELEMENT_ARRAY_BUFFER,
                 (indices.len() * size_of::<u32>()) as GLsizeiptr,
                 indices.as_ptr() as *const GLvoid,
-                gl::STATIC_DRAW,
+                gl::DYNAMIC_DRAW,
             );
 
             // Setup attribute bindings
