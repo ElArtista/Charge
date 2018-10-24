@@ -338,11 +338,13 @@ impl TextRenderer {
         glyphs: &[PositionedGlyph],
         font_id: usize,
     ) -> (Vec<Vertex>, Vec<u32>) {
+        let mut nglyphs = 0;
         let vertices: Vec<_> = glyphs
             .iter()
             .flat_map(|g| {
                 // Lookup a positioned glyph's texture location
                 if let Ok(Some((uv_rect, scr_rect))) = self.cache.borrow().rect_for(font_id, g) {
+                    nglyphs += 1;
                     let sc_rect = Rect {
                         min: point(scr_rect.min.x as f32, scr_rect.min.y as f32),
                         max: point(scr_rect.max.x as f32, scr_rect.max.y as f32),
@@ -370,7 +372,7 @@ impl TextRenderer {
                     vec![]
                 }
             }).collect();
-        let indices: Vec<u32> = (0..glyphs.len())
+        let indices: Vec<u32> = (0..nglyphs)
             .flat_map(|i| [0, 1, 2, 0, 2, 3].iter().map(move |x| x + (i as u32) * 4))
             .collect();
         (vertices, indices)
