@@ -250,15 +250,10 @@ impl Game {
                 &translation(&vec3(-1.0 + pad, 1.0 - pad * wnd_ratio, 0.0)),
                 &(&vec3(tscl, tscl, tscl)),
             );
-            self.text_renderer.draw(
-                "sans",
-                &self.status,
-                &[1.0, 1.0, 1.0, 1.0],
-                &tmvp.as_ref(),
-                HAlignment::Right,
-                VAlignment::Bottom,
-                false,
-            );
+            Text::new(&self.status, "sans", &tmvp.as_ref())
+                .with_halignment(HAlignment::Right)
+                .with_valignment(VAlignment::Bottom)
+                .draw(&self.text_renderer);
         }
 
         self.window.swap_buffers().unwrap();

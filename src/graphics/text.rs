@@ -73,6 +73,55 @@ pub enum VAlignment {
     Bottom,
 }
 
+pub struct Text<'a> {
+    contents: &'a str,
+    font: &'a str,
+    transform: &'a [[f32; 4]; 4],
+    color: [f32; 4],
+    halign: HAlignment,
+    valign: VAlignment,
+    use_vmetrics: bool,
+}
+
+#[allow(dead_code)]
+impl <'a> Text<'a> {
+    pub fn new(contents: &'a str, font: &'a str, transform: &'a [[f32; 4]; 4]) -> Self {
+        Text {
+            contents,
+            font,
+            transform,
+            color: [1.0; 4],
+            halign: HAlignment::Center,
+            valign: VAlignment::Center,
+            use_vmetrics: false
+        }
+    }
+
+    pub fn with_color(mut self, color: &[f32; 4]) -> Self {
+        self.color = *color;
+        self
+    }
+
+    pub fn with_halignment(mut self, halign: HAlignment) -> Self {
+        self.halign = halign;
+        self
+    }
+
+    pub fn with_valignment(mut self, valign: VAlignment) -> Self {
+        self.valign = valign;
+        self
+    }
+
+    pub fn with_use_vmetrics(mut self, use_vmetrics: bool) -> Self {
+        self.use_vmetrics = use_vmetrics;
+        self
+    }
+
+    pub fn draw(&self, rndr: &TextRenderer) {
+        rndr.draw(self)
+    }
+}
+
 impl TextRenderer {
     pub fn new() -> Self {
         // Make gpu cache
@@ -144,23 +193,17 @@ impl TextRenderer {
 
     pub fn draw(
         &self,
-        font_name: &str,
-        text: &str,
-        color: &[f32; 4],
-        mvp: &[[f32; 4]; 4],
-        halign: HAlignment,
-        valign: VAlignment,
-        use_vmetrics: bool,
+        t: &Text
     ) {
         // Find font
-        let (font_id, font) = match self.font_map.get(font_name) {
+        let (font_id, font) = match self.font_map.get(t.font) {
             Some(a) => a,
             None => return,
         };
 
         // Get gluphs
         let (glyphs, num_lines) =
-            self.layout_paragraph(font, Scale::uniform(FONT_LOAD_SIZE), 2000, text);
+            self.layout_paragraph(font, Scale::uniform(FONT_LOAD_SIZE), 2000, t.contents);
 
         // Queue some positioned glyphs needed for the next frame
         for glyph in &glyphs {
@@ -239,23 +282,23 @@ impl TextRenderer {
             // Flip y
             v.0[1] = -v.0[1];
             // Horizontal alignment
-            match halign {
+            match t.halign {
                 HAlignment::Left => v.0[0] -= bbox.width() / 2.0,
                 HAlignment::Center => (),
                 HAlignment::Right => v.0[0] += bbox.width() / 2.0,
             }
             // Vertical alignment
-            if !use_vmetrics {
+            if !t.use_vmetrics {
                 // Center in bbox vertically
                 v.0[1] += bbox.min.y + bbox.height() / 2.0;
-                match valign {
+                match t.valign {
                     VAlignment::Top => v.0[1] += bbox.height() / 2.0,
                     VAlignment::Center => (),
                     VAlignment::Bottom => v.0[1] -= bbox.height() / 2.0,
                 }
             } else {
                 let advance_height = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
-                match valign {
+                match t.valign {
                     VAlignment::Top => {
                         v.0[1] += num_lines as f32 * advance_height;
                     }
@@ -320,8 +363,8 @@ impl TextRenderer {
             gl::ActiveTexture(gl::TEXTURE0);
             gl::BindTexture(gl::TEXTURE_2D, self.cache_img_id);
             self.shader.activate();
-            self.shader.set_uniform("mvp", mvp);
-            self.shader.set_uniform("col", color);
+            self.shader.set_uniform("mvp",  t.transform);
+            self.shader.set_uniform("col", &t.color);
             self.shader.set_uniform("tex", 0);
             gl::DrawElements(
                 gl::TRIANGLES,
