@@ -99,6 +99,7 @@ impl Shader {
             let count = 1; // TODO: Support uniform arrays
             unsafe {
                 match value.into() {
+                    Uniform::Bool(v) => gl::Uniform1iv(loc, count, &(v as GLint) as *const GLint),
                     Uniform::Float1(v) => gl::Uniform1fv(loc, count, &v as *const GLfloat),
                     Uniform::Float2(v) => gl::Uniform2fv(loc, count, v.as_ptr() as *const GLfloat),
                     Uniform::Float3(v) => gl::Uniform3fv(loc, count, v.as_ptr() as *const GLfloat),
@@ -139,6 +140,7 @@ impl Drop for Shader {
 }
 
 pub enum Uniform<'a> {
+    Bool(bool),
     Float1(f32),
     Float2(&'a [f32; 2]),
     Float3(&'a [f32; 3]),
@@ -154,6 +156,12 @@ pub enum Uniform<'a> {
     Matrix2(&'a [[f32; 2]; 2]),
     Matrix3(&'a [[f32; 3]; 3]),
     Matrix4(&'a [[f32; 4]; 4]),
+}
+
+impl<'a> From<bool> for Uniform<'a> {
+    fn from(item: bool) -> Self {
+        Uniform::Bool(item)
+    }
 }
 
 impl<'a> From<f32> for Uniform<'a> {
