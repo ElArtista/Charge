@@ -29,20 +29,65 @@ void main()
 
 const FRAGMENT_SHADER: &str = "\
 #version 300 es
+
+#ifdef GL_OES_standard_derivatives
+#extension GL_OES_standard_derivatives : enable
+const bool HAS_DERIVATIVES = true;
+#else
+const bool HAS_DERIVATIVES = false;
+#endif
+
 #ifdef GL_ES
 precision mediump float;
 #endif
+
 out vec4 fcolor;
 in vec2 tco;
 
 uniform vec4 col;
+uniform float scl;
 uniform sampler2D tex;
+uniform bool ssp;
+uniform bool dfd;
+
+const float SQRT2_2 = 0.70710678118654757;
+
+float contour(float d, float w)
+{
+    return smoothstep(0.5 - w, 0.5 + w, d);
+}
 
 void main()
 {
-    float dist = texture(tex, tco).a;
-    float fw = fwidth(dist);
-    float alpha = smoothstep(0.5 - fw, 0.5 + fw, dist);
+    vec2 uv = tco;
+    float dist = texture(tex, uv).a;
+
+    // Keep outlines a constant width irrespective of scaling
+    float fw = 0.0;
+    if (dfd && HAS_DERIVATIVES) {
+        // GLSL's fwidth = abs(dFdx(dist)) + abs(dFdy(dist))
+        fw = fwidth(dist);
+        // Stefan Gustavson's fwidth
+        //fw = SQRT2_2 * length(vec2(dFdx(dist), dFdy(dist)));
+    } else {
+        fw = (1.0 / scl) * SQRT2_2 / gl_FragCoord.w;
+    }
+    float alpha = contour(dist, fw);
+
+    if (ssp) {
+        // Supersample
+        float dscale = 0.354; // half of 1/sqrt2
+        vec2 duv = dscale * (dFdx(uv) + dFdy(uv));
+        vec4 box = vec4(uv - duv, uv + duv);
+        float asum = contour(texture(tex, box.xy).a, fw)
+                   + contour(texture(tex, box.zw).a, fw)
+                   + contour(texture(tex, box.xw).a, fw)
+                   + contour(texture(tex, box.zy).a, fw);
+        // Weighted average, with 4 extra points having 0.5 weight each,
+        // so 1 + 0.5 * 4 = 3 is the divisor
+        alpha = (alpha + 0.5 * asum) / 3.0;
+    }
+
     fcolor = col * vec4(vec3(1.0), alpha);
 }
 ";
@@ -81,6 +126,8 @@ pub struct Text<'a> {
     halign: HAlignment,
     valign: VAlignment,
     use_vmetrics: bool,
+    dfd_antialiasing: bool,
+    super_sample: bool,
 }
 
 #[allow(dead_code)]
@@ -93,7 +140,9 @@ impl <'a> Text<'a> {
             color: [1.0; 4],
             halign: HAlignment::Center,
             valign: VAlignment::Center,
-            use_vmetrics: false
+            use_vmetrics: false,
+            dfd_antialiasing: false,
+            super_sample: true,
         }
     }
 
@@ -114,6 +163,16 @@ impl <'a> Text<'a> {
 
     pub fn with_use_vmetrics(mut self, use_vmetrics: bool) -> Self {
         self.use_vmetrics = use_vmetrics;
+        self
+    }
+
+    pub fn with_super_sample(mut self, super_sample: bool) -> Self {
+        self.super_sample = super_sample;
+        self
+    }
+
+    pub fn with_dfd_antialiasing(mut self, dfd_antialiasing: bool) -> Self {
+        self.dfd_antialiasing = dfd_antialiasing;
         self
     }
 
@@ -356,6 +415,10 @@ impl TextRenderer {
                 (2 * size_of::<f32>()) as *const GLvoid,
             );
 
+            // Compute scale factor
+            let m = &t.transform;
+            let scl = (m[1][1] * m[1][1] + m[1][2] * m[1][2] + m[1][3] * m[1][3]).sqrt();
+
             // Draw
             gl::Disable(gl::DEPTH_TEST);
             gl::Enable(gl::BLEND);
@@ -363,8 +426,11 @@ impl TextRenderer {
             gl::ActiveTexture(gl::TEXTURE0);
             gl::BindTexture(gl::TEXTURE_2D, self.cache_img_id);
             self.shader.activate();
-            self.shader.set_uniform("mvp",  t.transform);
             self.shader.set_uniform("col", &t.color);
+            self.shader.set_uniform("mvp", t.transform);
+            self.shader.set_uniform("ssp", t.super_sample);
+            self.shader.set_uniform("dfd", t.dfd_antialiasing);
+            self.shader.set_uniform("scl", scl);
             self.shader.set_uniform("tex", 0);
             gl::DrawElements(
                 gl::TRIANGLES,
